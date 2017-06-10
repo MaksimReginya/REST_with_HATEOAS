@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Net;
 using System.Web.Http;
 using System.Web.Http.Description;
 
 using REST_with_HATEOAS.Models;
+using REST_with_HATEOAS.Resources.RingStations;
+using REST_with_HATEOAS.Resources.Parks;
+using REST_with_HATEOAS.Resources.AnimalTypes;
 
 namespace REST_with_HATEOAS.Controllers
 {
@@ -14,38 +16,76 @@ namespace REST_with_HATEOAS.Controllers
     {
         private AnimalContext db = new AnimalContext();
 
-        // GET: /RingStations
-        public IEnumerable<RingStation> GetRingStations()
+        [NonAction]
+        private ParkRepresentation GetPark(Park park)
         {
+            var representation = new ParkRepresentation()
+            {
+                Id = park.Id,
+                Name = park.Name
+            };
+            representation.Links.Add(LinkTemplates.Parks.DeletePark.CreateLink(new { id = park.Id }));
+            representation.Links.Add(LinkTemplates.Parks.UpdatePark.CreateLink(new { id = park.Id }));
+            return representation;
+        }
+
+        [NonAction]
+        private AnimalTypeRepresentation GetAnimalType(AnimalType animalType)
+        {
+            var representation = new AnimalTypeRepresentation()
+            {
+                Id = animalType.Id,
+                Name = animalType.Name
+            };
+            representation.Links.Add(LinkTemplates.AnimalTypes.DeleteAnimalType.CreateLink(new { id = animalType.Id }));
+            representation.Links.Add(LinkTemplates.AnimalTypes.UpdateAnimalType.CreateLink(new { id = animalType.Id }));
+            return representation;
+        }
+
+        [NonAction]
+        private RingStationRepresentation GetRingStation(RingStation ringStation)
+        {
+            var representation = new RingStationRepresentation()
+            {
+                Id = ringStation.Id,
+                Name = ringStation.Name
+            };
+            representation.Links.Add(LinkTemplates.RingStations.DeleteRingStation.CreateLink(new { id = ringStation.Id }));
+            representation.Links.Add(LinkTemplates.RingStations.UpdateRingStation.CreateLink(new { id = ringStation.Id }));
+            representation.Park = ringStation.Park == null ? null : GetPark(ringStation.Park);
+            representation.AnimalTypes = ringStation.AnimalTypes.Select(animalType => GetAnimalType(animalType)).ToList();
+            return representation;
+        }
+
+        // GET: /RingStations
+        public RingStationListRepresentation GetRingStations()
+        {
+            var response = new RingStationListRepresentation();
+
             var ringStationsInDatabase = db.RingStations.ToList();
-            List<RingStation> ringStations = new List<RingStation>();
+
             foreach (var ringStation in ringStationsInDatabase)
             {
-                List<AnimalType> animalTypes = new List<AnimalType>();
-                foreach (var animalType in ringStation.AnimalTypes)
-                {
-                    animalTypes.Add(new AnimalType() { Name = animalType.Name, Id = animalType.Id });
-                }
-                var park = ringStation.Park == null ? null : new Park() { Name = ringStation.Park.Name, Id = ringStation.Park.Id };
-                ringStations.Add(new RingStation() { Name = ringStation.Name, Id = ringStation.Id, AnimalTypes = animalTypes, Park = park });
+                response.ResourceList.Add(GetRingStation(ringStation));
             }
-            return ringStations;
+
+            return response;
         }
 
         // GET: /RingStations/5
-        [ResponseType(typeof(RingStation))]
+        [ResponseType(typeof(RingStationRepresentation))]
         public IHttpActionResult GetRingStation(int id)
         {
-            var ringStation = dbGetRingStation(id);
+            var ringStation = db.RingStations.Find(id);
             if (ringStation != null)
-                return Ok(ringStation);
+                return Ok(GetRingStation(ringStation));
             else
                 return NotFound();
         }
 
         // PUT: /RingStations/5
         [ResponseType(typeof(void))]
-        public IHttpActionResult PutRingStation(int id, [FromBody]RingStation ringStation)
+        public IHttpActionResult PutRingStation(int id, RingStationRepresentation ringStation)
         {
             if (!ModelState.IsValid)
             {
@@ -59,8 +99,8 @@ namespace REST_with_HATEOAS.Controllers
         }
 
         // POST: /RingStations
-        [ResponseType(typeof(RingStation))]
-        public IHttpActionResult PostRingStation([FromBody]RingStation ringStation)
+        [ResponseType(typeof(RingStationRepresentation))]
+        public IHttpActionResult PostRingStation(RingStationRepresentation ringStation)
         {
             if (!ModelState.IsValid)
             {
@@ -69,39 +109,23 @@ namespace REST_with_HATEOAS.Controllers
 
             var ringStationInDatabase = dbPostRingStation(ringStation);
             if (ringStationInDatabase != null)
-                return CreatedAtRoute("DefaultApi", new { id = ringStationInDatabase.Id }, ringStationInDatabase);
+                return CreatedAtRoute("DefaultApi", new { id = ringStationInDatabase.Id }, GetRingStation(ringStationInDatabase));
             else
                 return BadRequest();            
         }
 
         // DELETE: /RingStations/5
-        [ResponseType(typeof(RingStation))]
+        [ResponseType(typeof(RingStationRepresentation))]
         public IHttpActionResult DeleteRingStation(int id)
         {
             var ringStation = dbDeleteRingStation(id);
             if (ringStation != null)
-                return Ok(ringStation);
+                return Ok(GetRingStation(ringStation));
             else
                 return NotFound();
         }
-
-        private RingStation dbGetRingStation(int id)
-        {
-            RingStation ringStation = db.RingStations.Find(id);
-            if (ringStation == null)
-            {
-                return null;
-            }
-            List<AnimalType> animalTypes = new List<AnimalType>();
-            foreach (var animalType in ringStation.AnimalTypes)
-            {
-                animalTypes.Add(new AnimalType() { Name = animalType.Name, Id = animalType.Id });
-            }
-            var park = ringStation.Park == null ? null : new Park() { Name = ringStation.Park.Name, Id = ringStation.Park.Id };
-            return new RingStation() { Name = ringStation.Name, Id = ringStation.Id, AnimalTypes = animalTypes, Park = park };
-        }
-
-        private bool dbPutRingStation(int id, RingStation ringStation)
+        
+        private bool dbPutRingStation(int id, RingStationRepresentation ringStation)
         {
             var ringStationInDatabase = db.RingStations.Find(id);
             if (ringStationInDatabase == null)
@@ -152,7 +176,7 @@ namespace REST_with_HATEOAS.Controllers
             return true;
         }
 
-        private RingStation dbPostRingStation(RingStation ringStation)
+        private RingStation dbPostRingStation(RingStationRepresentation ringStation)
         {
             var ringStationInDatabase = db.RingStations.FirstOrDefault(elem => elem.Name == ringStation.Name);
             if (ringStationInDatabase != null)
@@ -185,7 +209,7 @@ namespace REST_with_HATEOAS.Controllers
             }
 
             db.SaveChanges();
-            ringStation.Id = ringStationInDatabase.Id;
+            
             return ringStationInDatabase;
         }
 
