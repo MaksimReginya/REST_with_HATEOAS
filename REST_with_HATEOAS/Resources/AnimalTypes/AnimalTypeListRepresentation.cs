@@ -1,11 +1,18 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
+using WebApi.Hal;
 
 namespace REST_with_HATEOAS.Resources.AnimalTypes
 {
-    public class AnimalTypeListRepresentation
+    public class AnimalTypeListRepresentation : SimpleListRepresentation<AnimalTypeRepresentation>
     {
+        public AnimalTypeListRepresentation()
+        {
+            Rel = LinkTemplates.AnimalTypes.GetAnimalTypes.Rel;
+        }
+        protected override void CreateHypermedia()
+        {
+            Href = LinkTemplates.AnimalTypes.GetAnimalTypes.CreateLink().Href;
+            Links.Add(LinkTemplates.AnimalTypes.GetAnimalTypes.CreateLink());
+        }
     }
 }
