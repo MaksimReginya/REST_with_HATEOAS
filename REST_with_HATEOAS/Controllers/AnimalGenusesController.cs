@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Net;
 using System.Web.Http;
 using System.Web.Http.Description;
 
 using REST_with_HATEOAS.Models;
+using REST_with_HATEOAS.Resources.AnimalGenuses;
+using REST_with_HATEOAS.Resources.Parks;
+using REST_with_HATEOAS.Resources.AnimalTypes;
 
 namespace REST_with_HATEOAS.Controllers
 {
@@ -14,42 +16,76 @@ namespace REST_with_HATEOAS.Controllers
     {
         private AnimalContext db = new AnimalContext();
 
-        // GET: /AnimalGenuses
-        public IEnumerable<AnimalGenus> GetAnimalGenuses()
+        [NonAction]
+        private ParkRepresentation GetPark(Park park)
         {
-            var animalGenusesInDatabase = db.AnimalGenuses.ToList();
-            List<AnimalGenus> animalGenuses = new List<AnimalGenus>();
-            foreach (var animalGenus in animalGenusesInDatabase)
+            var representation = new ParkRepresentation()
             {
-                List<AnimalType> animalTypes = new List<AnimalType>();
-                foreach (var animalType in animalGenus.AnimalTypes)
-                {
-                    animalTypes.Add(new AnimalType() { Name = animalType.Name, Id = animalType.Id });
-                }
-                List<Park> parks = new List<Park>();
-                foreach (var park in animalGenus.Parks)
-                {
-                    parks.Add(new Park() { Name = park.Name, Id = park.Id });
-                }
-                animalGenuses.Add(new AnimalGenus() { Name = animalGenus.Name, Id = animalGenus.Id, AnimalTypes = animalTypes, Parks = parks });
-            }
-            return animalGenuses;
+                Id = park.Id,
+                Name = park.Name
+            };
+            representation.Links.Add(LinkTemplates.Parks.DeletePark.CreateLink(new { id = park.Id }));
+            representation.Links.Add(LinkTemplates.Parks.UpdatePark.CreateLink(new { id = park.Id }));
+            return representation;
         }
 
-        // GET: /AnimalGenuses/5
-        [ResponseType(typeof(AnimalGenus))]
+        [NonAction]
+        private AnimalTypeRepresentation GetAnimalType(AnimalType animalType)
+        {
+            var representation = new AnimalTypeRepresentation()
+            {
+                Id = animalType.Id,
+                Name = animalType.Name
+            };
+            representation.Links.Add(LinkTemplates.AnimalTypes.DeleteAnimalType.CreateLink(new { id = animalType.Id }));
+            representation.Links.Add(LinkTemplates.AnimalTypes.UpdateAnimalType.CreateLink(new { id = animalType.Id }));
+            return representation;
+        }
+
+        [NonAction]
+        private AnimalGenusRepresentation GetAnimalGenus(AnimalGenus animalGenus)
+        {
+            var representation = new AnimalGenusRepresentation()
+            {
+                Id = animalGenus.Id,
+                Name = animalGenus.Name
+            };
+            representation.Links.Add(LinkTemplates.AnimalGenuses.DeleteAnimalGenus.CreateLink(new { id = animalGenus.Id }));
+            representation.Links.Add(LinkTemplates.AnimalGenuses.UpdateAnimalGenus.CreateLink(new { id = animalGenus.Id }));
+            representation.AnimalTypes = animalGenus.AnimalTypes.Select(animalType => GetAnimalType(animalType)).ToList();
+            representation.Parks = animalGenus.Parks.Select(park => GetPark(park)).ToList();
+            return representation;
+        }
+
+        // GET: /AnimalGenuses
+        public AnimalGenusListRepresentation GetAnimalGenuses()
+        {
+            var response = new AnimalGenusListRepresentation();
+
+            var animalGenusesInDatabase = db.AnimalGenuses.ToList();
+
+            foreach (var animalGenus in animalGenusesInDatabase)
+            {
+                response.ResourceList.Add(GetAnimalGenus(animalGenus));
+            }
+
+            return response;
+        }
+
+        // GET: /AnimalGenuses/5   
+        [ResponseType(typeof(AnimalGenusRepresentation))]
         public IHttpActionResult GetAnimalGenus(int id)
         {
-            var animalGenus = dbGetAnimalGenus(id);
+            var animalGenus = db.AnimalGenuses.Find(id);
             if (animalGenus != null)
-                return Ok(animalGenus);
+                return Ok(GetAnimalGenus(animalGenus));
             else
                 return NotFound();
         }
 
         // PUT: /AnimalGenuses/5
         [ResponseType(typeof(void))]
-        public IHttpActionResult PutAnimalGenus(int id, [FromBody]AnimalGenus animalGenus)
+        public IHttpActionResult PutAnimalGenus(int id, AnimalGenusRepresentation animalGenus)
         {
             if (!ModelState.IsValid)
             {
@@ -63,8 +99,8 @@ namespace REST_with_HATEOAS.Controllers
         }
 
         // POST: /AnimalGenuses
-        [ResponseType(typeof(AnimalGenus))]
-        public IHttpActionResult PostAnimalGenus([FromBody]AnimalGenus animalGenus)
+        [ResponseType(typeof(AnimalGenusRepresentation))]
+        public IHttpActionResult PostAnimalGenus(AnimalGenusRepresentation animalGenus)
         {
             if (!ModelState.IsValid)
             {
@@ -73,43 +109,23 @@ namespace REST_with_HATEOAS.Controllers
 
             var animalGenusInDb = dbPostAnimalGenus(animalGenus);
             if (animalGenusInDb != null)
-                return CreatedAtRoute("DefaultApi", new { id = animalGenusInDb.Id }, animalGenusInDb);
+                return CreatedAtRoute("DefaultApi", new { id = animalGenusInDb.Id }, GetAnimalGenus(animalGenusInDb));
             else
                 return BadRequest();            
         }
 
         // DELETE: /AnimalGenuses/5
-        [ResponseType(typeof(AnimalGenus))]
+        [ResponseType(typeof(AnimalGenusRepresentation))]
         public IHttpActionResult DeleteAnimalGenus(int id)
         {
             var animalGenus = dbDeleteAnimalGenus(id);
             if (animalGenus != null)
-                return Ok(animalGenus);
+                return Ok(GetAnimalGenus(animalGenus));
             else
                 return NotFound();
         }
-
-        private AnimalGenus dbGetAnimalGenus(int id)
-        {
-            AnimalGenus animalGenus = db.AnimalGenuses.Find(id);
-            if (animalGenus == null)
-            {
-                return null;
-            }
-            List<AnimalType> animalTypes = new List<AnimalType>();
-            foreach (var animalType in animalGenus.AnimalTypes)
-            {
-                animalTypes.Add(new AnimalType() { Name = animalType.Name, Id = animalType.Id });
-            }
-            List<Park> parks = new List<Park>();
-            foreach (var park in animalGenus.Parks)
-            {
-                parks.Add(new Park() { Name = park.Name, Id = park.Id });
-            }
-            return new AnimalGenus() { Name = animalGenus.Name, Id = animalGenus.Id, AnimalTypes = animalTypes, Parks = parks };
-        }
-
-        private bool dbPutAnimalGenus(int id, AnimalGenus animalGenus)
+        
+        private bool dbPutAnimalGenus(int id, AnimalGenusRepresentation animalGenus)
         {
             var animalGenusInDb = db.AnimalGenuses.Find(id);
             if (animalGenusInDb == null)
@@ -158,7 +174,7 @@ namespace REST_with_HATEOAS.Controllers
             return true;       
         }
 
-        private AnimalGenus dbPostAnimalGenus(AnimalGenus animalGenus)
+        private AnimalGenus dbPostAnimalGenus(AnimalGenusRepresentation animalGenus)
         {
             if (db.AnimalGenuses.FirstOrDefault(elem => elem.Name == animalGenus.Name) != null)
             {
@@ -188,8 +204,8 @@ namespace REST_with_HATEOAS.Controllers
             }
 
             db.SaveChanges();
-            animalGenus.Id = animalGenusInDb.Id;
-            return animalGenus;
+            
+            return animalGenusInDb;
         }
 
         private AnimalGenus dbDeleteAnimalGenus(int id)

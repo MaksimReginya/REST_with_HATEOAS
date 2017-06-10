@@ -72,16 +72,14 @@ namespace REST_with_HATEOAS.Controllers
         }
 
         // GET: /Parks/5        
-        public ParkRepresentation GetPark(int id)
+        [ResponseType(typeof(ParkRepresentation))]
+        public IHttpActionResult GetPark(int id)
         {
-            Park park = db.Parks.Find(id);
-
-            if (park == null)
-            {
-                return null;
-            }
-
-            return GetPark(park);
+            var park = db.Parks.Find(id);            
+            if (park != null)
+                return Ok(GetPark(park));
+            else
+                return NotFound();
         }
 
         // PUT: /Parks/5
