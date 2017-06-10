@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Net;
 using System.Web.Http;
 using System.Web.Http.Description;
 
 using REST_with_HATEOAS.Models;
+using REST_with_HATEOAS.Resources.AnimalTypes;
+using REST_with_HATEOAS.Resources.AnimalGenuses;
+using REST_with_HATEOAS.Resources.RingStations;
 
 namespace REST_with_HATEOAS.Controllers
 {
@@ -14,38 +16,76 @@ namespace REST_with_HATEOAS.Controllers
     {
         private AnimalContext db = new AnimalContext();
 
-        // GET: /AnimalTypes
-        public IEnumerable<AnimalType> GetAnimalTypes()
+        [NonAction]
+        private AnimalGenusRepresentation GetAnimalGenus(AnimalGenus animalGenus)
         {
+            var representation = new AnimalGenusRepresentation()
+            {
+                Id = animalGenus.Id,
+                Name = animalGenus.Name
+            };
+            representation.Links.Add(LinkTemplates.AnimalGenuses.DeleteAnimalGenus.CreateLink(new { id = animalGenus.Id }));
+            representation.Links.Add(LinkTemplates.AnimalGenuses.UpdateAnimalGenus.CreateLink(new { id = animalGenus.Id }));
+            return representation;
+        }
+
+        [NonAction]
+        private RingStationRepresentation GetRingStation(RingStation ringStation)
+        {
+            var representation = new RingStationRepresentation()
+            {
+                Id = ringStation.Id,
+                Name = ringStation.Name
+            };
+            representation.Links.Add(LinkTemplates.RingStations.DeleteRingStation.CreateLink(new { id = ringStation.Id }));
+            representation.Links.Add(LinkTemplates.RingStations.UpdateRingStation.CreateLink(new { id = ringStation.Id }));
+            return representation;
+        }
+
+        [NonAction]
+        private AnimalTypeRepresentation GetAnimalType(AnimalType animalType)
+        {
+            var representation = new AnimalTypeRepresentation()
+            {
+                Id = animalType.Id,
+                Name = animalType.Name
+            };
+            representation.Links.Add(LinkTemplates.AnimalTypes.DeleteAnimalType.CreateLink(new { id = animalType.Id }));
+            representation.Links.Add(LinkTemplates.AnimalTypes.UpdateAnimalType.CreateLink(new { id = animalType.Id }));
+            representation.AnimalGenus = animalType.AnimalGenus == null ? null : GetAnimalGenus(animalType.AnimalGenus);
+            representation.RingStations = animalType.RingStations.Select(ringStation => GetRingStation(ringStation)).ToList();
+            return representation;
+        }
+
+        // GET: /AnimalTypes
+        public AnimalTypeListRepresentation GetAnimalTypes()
+        {
+            var response = new AnimalTypeListRepresentation();
+
             var animalTypesInDatabase = db.AnimalTypes.ToList();
-            List<AnimalType> animalTypes = new List<AnimalType>();
+
             foreach (var animalType in animalTypesInDatabase)
             {
-                List<RingStation> ringStations = new List<RingStation>();
-                foreach (var ringStation in animalType.RingStations)
-                {
-                    ringStations.Add(new RingStation() { Name = ringStation.Name, Id = ringStation.Id });
-                }
-                var animalGenus = animalType.AnimalGenus == null ? null : new AnimalGenus() { Name = animalType.AnimalGenus.Name, Id = animalType.AnimalGenus.Id };
-                animalTypes.Add(new AnimalType() { Name = animalType.Name, Id = animalType.Id, RingStations = ringStations, AnimalGenus = animalGenus });
+                response.ResourceList.Add(GetAnimalType(animalType));
             }
-            return animalTypes;
+
+            return response;
         }
 
         // GET: /AnimalTypes/5
-        [ResponseType(typeof(AnimalType))]
+        [ResponseType(typeof(AnimalTypeRepresentation))]
         public IHttpActionResult GetAnimalType(int id)
         {
-            var animalType = dbGetAnimalType(id);
+            var animalType = db.AnimalTypes.Find(id);
             if (animalType != null)
-                return Ok(animalType);
+                return Ok(GetAnimalType(animalType));
             else
                 return NotFound();
         }
 
         // PUT: /AnimalTypes/5
         [ResponseType(typeof(void))]
-        public IHttpActionResult PutAnimalType(int id, [FromBody]AnimalType animalType)
+        public IHttpActionResult PutAnimalType(int id, AnimalTypeRepresentation animalType)
         {
             if (!ModelState.IsValid)
             {
@@ -59,8 +99,8 @@ namespace REST_with_HATEOAS.Controllers
         }
 
         // POST: /AnimalTypes
-        [ResponseType(typeof(AnimalType))]
-        public IHttpActionResult PostAnimalType([FromBody]AnimalType animalType)
+        [ResponseType(typeof(AnimalTypeRepresentation))]
+        public IHttpActionResult PostAnimalType(AnimalTypeRepresentation animalType)
         {
             if (!ModelState.IsValid)
             {
@@ -69,39 +109,23 @@ namespace REST_with_HATEOAS.Controllers
 
             var animalTypeInDatabase = dbPostAnimalType(animalType);
             if (animalTypeInDatabase != null)
-                return CreatedAtRoute("DefaultApi", new { id = animalTypeInDatabase.Id }, animalTypeInDatabase);
+                return CreatedAtRoute("DefaultApi", new { id = animalTypeInDatabase.Id }, GetAnimalType(animalTypeInDatabase));
             else
                 return BadRequest();            
         }
 
         // DELETE: /AnimalTypes/5
-        [ResponseType(typeof(AnimalType))]
+        [ResponseType(typeof(AnimalTypeRepresentation))]
         public IHttpActionResult DeleteAnimalType(int id)
         {
             var animalType = dbDeleteAnimalType(id);
             if (animalType != null)
-                return Ok(animalType);
+                return Ok(GetAnimalType(animalType));
             else
                 return NotFound();            
         }              
-
-        private AnimalType dbGetAnimalType(int id)
-        {
-            AnimalType animalType = db.AnimalTypes.Find(id);
-            if (animalType == null)
-            {
-                return null;
-            }
-            List<RingStation> ringStations = new List<RingStation>();
-            foreach (var ringStation in animalType.RingStations)
-            {
-                ringStations.Add(new RingStation() { Name = ringStation.Name, Id = ringStation.Id });
-            }
-            var animalGenus = animalType.AnimalGenus == null ? null : new AnimalGenus() { Name = animalType.AnimalGenus.Name, Id = animalType.AnimalGenus.Id };
-            return new AnimalType() { Name = animalType.Name, Id = animalType.Id, RingStations = ringStations, AnimalGenus = animalGenus };
-        }
-
-        private bool dbPutAnimalType(int id, AnimalType animalType)
+        
+        private bool dbPutAnimalType(int id, AnimalTypeRepresentation animalType)
         {
             var animalTypeInDatabase = db.AnimalTypes.Find(id);
             if (animalTypeInDatabase == null)
@@ -152,7 +176,7 @@ namespace REST_with_HATEOAS.Controllers
             return true;
         }
 
-        private AnimalType dbPostAnimalType(AnimalType animalType)
+        private AnimalType dbPostAnimalType(AnimalTypeRepresentation animalType)
         {
             var animalTypeInDatabase = db.AnimalTypes.FirstOrDefault(elem => elem.Name == animalType.Name);
             if (animalTypeInDatabase != null)
@@ -184,8 +208,7 @@ namespace REST_with_HATEOAS.Controllers
                 animalGenusInDb.AnimalTypes.Add(animalTypeInDatabase);
             }
 
-            db.SaveChanges();
-            animalType.Id = animalTypeInDatabase.Id;
+            db.SaveChanges();            
             return animalTypeInDatabase;
         }
 
